@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -31,7 +32,12 @@ func HandleError(rw http.ResponseWriter, err error) {
 	fmt.Fprintf(rw, "Server Error: %s\n", err)
 }
 
+var port int
+
 func main() {
+	flag.IntVar(&port, "port", 5000, "The port to run the SendGrid Webhook listener on")
+	flag.Parse()
+
 	m := martini.Classic()
 	m.Map(SetupDB())
 
@@ -72,5 +78,6 @@ func main() {
 		}
 	})
 
-	m.Run()
+	host := fmt.Sprintf("localhost:%v", port)
+	m.RunOnAddr(host)
 }
