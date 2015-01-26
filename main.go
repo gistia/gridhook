@@ -26,6 +26,11 @@ func PanicIf(err error) {
 	}
 }
 
+func HandleError(rw http.ResponseWriter, err error) {
+	rw.WriteHeader(500)
+	fmt.Fprintf(rw, "Server Error: %s\n", err)
+}
+
 func main() {
 	m := martini.Classic()
 	m.Map(SetupDB())
@@ -37,12 +42,19 @@ func main() {
 		PanicIf(err)
 
 		err = json.Unmarshal(body, &m)
-		PanicIf(err)
+		if err != nil {
+			rw.WriteHeader(400)
+			fmt.Fprintf(rw, "Bad request: %s\n", err)
+			return
+		}
 
 		if val, ok := m["email_event_id"]; ok {
 			uniqueId := val.(string)
 			e, err := models.FindEmailEventByUniqueId(db, uniqueId)
-			PanicIf(err)
+			if err != nil {
+				HandleError(rw, err)
+				return
+			}
 
 			if e == nil {
 				fmt.Fprintf(rw, "EmailEvent not found: %s\n", uniqueId)
