@@ -20,6 +20,40 @@ type EmailEvent struct {
 	Status      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Statuses    []*EmailEventStatus
+}
+
+func (e *EmailEvent) FindMostRecentStatus(db *sql.DB) (*EmailEventStatus, error) {
+	return FindLatestEmailEventStatus(db, e.Id.Int64)
+}
+
+func (e *EmailEvent) FetchStatuses(db *sql.DB) error {
+	statuses, err := FindEmailEventStatuses(db, e.Id.Int64)
+
+	if err != nil {
+		return err
+	}
+
+	e.Statuses = statuses
+	return err
+}
+
+func (e *EmailEvent) InsertStatus(db *sql.DB, timestamp time.Time, status string) error {
+	s := &EmailEventStatus{
+		EmailEventId: e.Id,
+		Timestamp:    timestamp,
+		Status:       status,
+	}
+
+	inserted, err := s.Insert(db)
+
+	if err != nil {
+		return err
+	}
+
+	e.Statuses = append(e.Statuses, inserted)
+
+	return err
 }
 
 func (e *EmailEvent) Update(db *sql.DB) error {

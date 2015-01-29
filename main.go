@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/fcoury/gridhook/models"
 	"github.com/go-martini/martini"
@@ -32,6 +33,10 @@ func HandleError(rw http.ResponseWriter, err error) {
 	fmt.Fprintf(rw, "Server Error: %s\n", err)
 }
 
+func HandleSuccess(rw http.ResponseWriter) {
+	rw.WriteHeader(200)
+}
+
 var port int
 
 func main() {
@@ -41,7 +46,7 @@ func main() {
 	m := martini.Classic()
 	m.Map(SetupDB())
 
-	m.Post("/", func(db *sql.DB, r *http.Request, rw http.ResponseWriter) {
+	m.Post("/sendgrid/event", func(db *sql.DB, r *http.Request, rw http.ResponseWriter) {
 		var m map[string]interface{}
 
 		body, err := ioutil.ReadAll(r.Body)
@@ -67,8 +72,28 @@ func main() {
 				return
 			}
 
-			status := m["event"]
-			e.Status = status.(string)
+			e.FetchStatuses(db)
+			last, err := e.FindMostRecentStatus(db)
+			PanicIf(err)
+			fmt.Printf("Status: %s\n", last.Status)
+
+			if m["timestamp"] == nil {
+				HandleSuccess(rw)
+				return
+			}
+
+			timestamp := time.Unix(int64(m["timestamp"].(float64)), 0)
+
+			status := m["event"].(string)
+
+			err = e.InsertStatus(db, timestamp, status)
+			PanicIf(err)
+
+			if last.Timestamp.After(timestamp) {
+				return
+			}
+
+			e.Status = status
 			err = e.Update(db)
 			PanicIf(err)
 
